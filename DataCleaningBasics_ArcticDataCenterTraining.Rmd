@@ -4,27 +4,118 @@ author: "Natasha Griffin"
 date: "10/21/2020"
 output: html_document
 ---
+# Chapter 8: Data Cleaning Basics
 
+On the knitr line, you can make global modifications such as message = FALSE for the whole document.
+Echo tells you whether to print the chunk to the document, and mess
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+### Load packages and files
+```{r, message=FALSE}
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+library(dplyr)
+library(tidyr)
+library(readr)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
+### Data sources
+* This reads a csv from a URL! Cool.
+* NOTE: This uses read_csv rather than the base R read.csv. This version is a bit faster and allows loading from web addresses, and it's better for guessing column types and for very large csvs. It also gives you more output (reports how it interpreted each column)
+```{r}
 
-You can also embed plots, for example:
+catch_original <- read_csv("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.302.1")
 
-```{r pressure, echo=FALSE}
-plot(pressure)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Clean and reshape data
+* Remove unnecessary columns
+```{r}
+
+catch_data <- catch_original %>%
+  select(Region, Year, Chinook, Sockeye, Coho, Pink, Chum) #note: these columns don't follow the typical object$column form. it's an implicit connection!
+#alternatively, use select(-All, -notesRegCode) to select everything except those two columns.
+
+head(catch_data)
+
+```
+
+
+* Check and fix column typing
+```{r}
+
+summary(catch_data) #turns out Chinook column is being mistyped as character class
+
+catch_clean <- catch_data %>% 
+  mutate(Chinook = as.numeric(Chinook)) #this tells us there's a problem with mutating Chinook-- NAs have been introduced by coercion
+
+#to figure out where those NAs are:
+whichNA <- which(is.na(catch_clean$Chinook))
+whichNA
+
+catch_data[whichNA,] #here we see that there's an I instead of a 1 in this row! 
+
+catch_clean <- catch_data %>% 
+  mutate(Chinook = ifelse(Chinook == "I", 1, Chinook)) %>% 
+  mutate(Chinook = as.numeric(Chinook))
+catch_clean
+
+```
+
+* Reshape data
+```{r}
+catch_long <- catch_clean %>% 
+  pivot_longer(cols = -c(Region, Year), names_to = "species", values_to = "catch")
+head(catch_long)
+
+catch_wide <- catch_long %>% 
+  pivot_wider(names_from = species, values_from = catch)
+head(catch_wide)
+
+#rename the vague catch column to catch in thousands of fish
+catch_long <- catch_long %>% 
+  rename(catch_thousands = catch)
+catch_long
+
+#turn catch_thousands column into actual thousands
+catch_long <- catch_long %>% 
+  mutate(catch = catch_thousands*1000) %>% 
+  select(-catch_thousands)
+catch_long
+
+```
+
+
+### Do some summary stuff
+```{r}
+
+#take mean catches for each region
+mean_by_region <- catch_long %>% 
+  group_by(Region) %>% 
+  summarise(catch_mean = mean(catch)) %>% 
+  arrange(desc(catch_mean)) #arrange in descending order
+mean_by_region #shows that SSE has the highest mean catch! 
+
+#filter to just SSE region
+SSE_catch <- catch_long %>% 
+  filter(Region == "SSE")
+SSE_catch
+
+```
+
+Now read in region definitions csv and clean it up right after! 
+```{r}
+region_defs <- read_csv("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.303.1") %>% 
+  select(code, mgmtArea)
+```
+
+### Join datasets together
+```{r}
+
+catch_joined <- left_join(catch_long, region_defs, by = c("Region" = "code"))
+catch_joined
+
+```
+
