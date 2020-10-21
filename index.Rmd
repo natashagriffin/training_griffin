@@ -11,6 +11,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Analysis
 
-Wow I do such cool stuff. Is this working?
+Wow I do such cool stuff. Is this working? Another change.
 
-[Data Tidying](tidy_lesson.html)
+[Data Tidying](index.html)
