@@ -14,3 +14,5 @@ knitr::opts_chunk$set(echo = TRUE)
 Wow I do such cool stuff. Is this working? Another change.
 
 [Data Tidying](index.html)
+
+[Making Figures](PublicationGraphics_ArcticDataCenterTraining.html)
