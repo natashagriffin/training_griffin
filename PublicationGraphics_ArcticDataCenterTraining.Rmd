@@ -1,0 +1,92 @@
+---
+title: "PublicationGraphics_ArcticDataCenterTraining"
+author: "Natasha Griffin"
+date: "10/21/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Load packages
+```{r, message = FALSE}
+
+library(leaflet)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(DT)
+library(scales) # install.packages("scales")
+
+```
+
+### Load data table from KNB data repository
+```{r}
+
+data_url <- "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/urn%3Auuid%3Af119a05b-bbe7-4aea-93c6-85434dcb1c5e"
+
+#This gets the file locally if possible, or if not it grabs it from the repository. 
+esc <- tryCatch(
+    read.csv("data/escapement.csv", stringsAsFactors = FALSE),
+    error=function(cond) {
+        message(paste("Escapement file does not seem to exist, so get it from the KNB."))
+        esc <- read.csv(url(data_url, method = "libcurl"), stringsAsFactors = FALSE)
+        return(esc)
+    }
+)
+
+head(esc)
+
+```
+
+### Calculate total annual escapement by species and region
+```{r}
+
+annual_esc <- esc %>% 
+  separate(sampleDate, into = c("year", "month", "day"), sep = "-") %>% 
+  mutate(year = as.numeric(year)) %>% 
+  group_by(Species, SASAP.Region, year) %>% 
+  summarise(escapement = sum(DailyCount)) %>% 
+  filter(Species %in% c("Chinook", "Sockeye", "Chum", "Coho", "Pink"))
+
+annual_esc
+
+```
+
+### Plotting with ggplot
+
+```{r}
+
+ggplot(annual_esc, aes(x = Species, y = escapement, fill = SASAP.Region)) +
+  geom_col() + theme_bw()
+
+#from Kodiak only
+annual_esc %>% 
+  filter(SASAP.Region == "Kodiak") %>% 
+  ggplot(aes(x = year, y = escapement, color = Species)) +
+  geom_line() + geom_point() + theme_bw() +
+  labs(x = "Year", y = "Annual Escapement (num. fish)", title = "Kodiak Salmon Escapement") +
+  theme(legend.position = "bottom")
+
+ggplot(annual_esc, aes(x = year, y = escapement, color = Species)) +
+  geom_point() + geom_line() + theme_bw() +
+  scale_y_continuous(labels=comma) +
+  facet_wrap(~SASAP.Region) +
+  labs(x = "Year", y = "Annual Escapement (num. fish)", title = "Kodiak Salmon Escapement") +
+  theme(legend.position = "bottom")
+  
+
+```
+### Interactive tables
+```{r}
+
+locations <- esc %>% 
+  distinct(Location, Latitude, Longitude) %>% 
+  drop_na()
+
+datatable(locations)
+
+```
+
