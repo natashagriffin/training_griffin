@@ -3,6 +3,8 @@ title: "PublicationGraphics_ArcticDataCenterTraining"
 author: "Natasha Griffin"
 date: "10/21/2020"
 output: html_document
+editor_options: 
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
