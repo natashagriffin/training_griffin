@@ -8,3 +8,5 @@ These files were created as part of the Arctic Data Center training on reproduci
 * Science
 
 ## Installation details
+... some things
+
