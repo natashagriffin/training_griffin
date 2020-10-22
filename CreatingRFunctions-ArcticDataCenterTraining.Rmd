@@ -40,5 +40,24 @@ celsius
 
 ```
 
+## Challenge: write and test celsius to fahrenheit function
+```{r}
+#' Converts Celsius to Fahrenheit
+#'
+#' This function takes in temperature data in degrees Celsius to be converted to degrees Fahrenheit
+#' @param celsius Temperature value or vector in degrees Celsius
+#' @return Temperature value in degrees Celsius
+celsius_to_fahr <- function(celsius) {
+  fahr <- (celsius*9/5 +32)
+  return(fahr)
+}
 
-## Document function
+fahr <- celsius_to_fahr(celsius)
+fahr
+
+fahr == airtemps
+
+```
+
+
+
