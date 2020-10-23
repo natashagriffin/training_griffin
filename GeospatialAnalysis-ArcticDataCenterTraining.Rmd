@@ -1,0 +1,133 @@
+---
+title: "GeospatialAnalysis-ArcticDataCenterTraining"
+author: "Natasha Griffin"
+date: "10/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+```{r}
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(leaflet)
+library(scales)
+library(ggmap)
+```
+
+## Load shapefiles and check/change coordinate reference system
+```{r}
+ak_regions <- read_sf("shapefiles/ak_regions_simp.shp")
+plot(ak_regions)
+head(ak_regions)
+
+st_crs(ak_regions) # see what the coordinate reference system is. 4326 == the EPSG code (represents standard projection and datum)
+
+ak_regions_3338 <- ak_regions %>% 
+  st_transform(crs = 3338)
+st_crs(ak_regions_3338)
+
+plot(ak_regions_3338)
+```
+
+## Load population data and make it spatial
+```{r}
+ak_regions_3338 %>% 
+  select(region) #note: the geometry column is "sticky" so it remains with your df unless you explicitly exclude it. very important for it to stay so you don't lose the geospatial info. 
+
+pop <- read_csv("shapefiles/alaska_population.csv")
+pop_4326 <- st_as_sf(pop, 
+                     coords = c('lng', 'lat'), 
+                     crs = 4326, 
+                     remove = F)#coerce population data into a spatial form?? we're assuming WGS84 will work
+head(pop_4326)
+
+pop_3338 <- pop_4326 %>% 
+  st_transform(crs = 3338)
+```
+
+## Join spatial and population data
+```{r}
+pop_joined <- st_join (pop_3338, ak_regions_3338, join =st_within)
+head(pop_joined)
+```
+
+```{r}
+pop_region <- pop_joined %>% 
+  as.data.frame() %>% 
+  group_by(region) %>% 
+  summarise(total_pop = sum(population), .groups = "drop") #the groups drop is like ungrouping? and gets rid of the warning that otherwise pops up
+head(pop_region)
+
+pop_region_3338 <- left_join(ak_regions_3338, pop_region)
+plot(pop_region_3338)
+plot(pop_region_3338["total_pop"])
+
+pop_mgmt_3338 <- pop_region_3338 %>% 
+  group_by(mgmt_area) %>% 
+  summarise(total_pop = sum(total_pop), do_union = FALSE)
+plot(pop_mgmt_3338)
+plot(pop_mgmt_3338["total_pop"])
+```
+## Read in rivers to add to map
+```{r}
+rivers_3338 <- read_sf("shapefiles/ak_rivers_simp.shp")
+```
+
+## Make some plots!
+```{r}
+ggplot(pop_region_3338) +
+  geom_sf(aes(fill = total_pop)) +
+  geom_sf(data=rivers_3338, aes(size=StrOrder), color="black") +
+  geom_sf(data = pop_3338, aes(), size=0.5) +
+  scale_size(range = c(0.01, 0.2), guide = F) +
+  theme_bw() +
+  labs(fill = "Total Population") +
+  scale_fill_continuous(low="white", high="blue", labels = comma)
+```
+
+## make function to fix the projection or something
+```{r}
+# Define a function to fix the bbox to be in EPSG:3857
+# See https://github.com/dkahle/ggmap/issues/160#issuecomment-397055208
+ggmap_bbox_to_3857 <- function(map) {
+  if (!inherits(map, "ggmap")) stop("map must be a ggmap object")
+  # Extract the bounding box (in lat/lon) from the ggmap to a numeric vector, 
+  # and set the names to what sf::st_bbox expects:
+  map_bbox <- setNames(unlist(attr(map, "bb")), 
+                       c("ymin", "xmin", "ymax", "xmax"))
+  
+  # Coonvert the bbox to an sf polygon, transform it to 3857, 
+  # and convert back to a bbox (convoluted, but it works)
+  bbox_3857 <- st_bbox(st_transform(st_as_sfc(st_bbox(map_bbox, crs = 4326)), 3857))
+  
+  # Overwrite the bbox of the ggmap object with the transformed coordinates 
+  attr(map, "bb")$ll.lat <- bbox_3857["ymin"]
+  attr(map, "bb")$ll.lon <- bbox_3857["xmin"]
+  attr(map, "bb")$ur.lat <- bbox_3857["ymax"]
+  attr(map, "bb")$ur.lon <- bbox_3857["xmax"]
+  map
+}
+```
+
+
+## Adding a base map
+```{r}
+pop_3857 <- pop_3338 %>% 
+  st_transform(crs = 3857)
+
+bbox <- c(-170, 52, -130, 64)
+ak_map <- get_stamenmap(bbox, zoom = 4)
+ak_map_3857 <- ggmap_bbox_to_3857(ak_map)
+
+ggmap(ak_map_3857) +
+  geom_sf(data=pop_3857, aes(color = population), inherit.aes=F) +
+  scale_color_continuous(low="white", high="blue", labels = comma)
+
+```
+
+
